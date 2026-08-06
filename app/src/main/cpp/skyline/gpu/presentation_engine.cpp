@@ -280,6 +280,11 @@ namespace skyline::gpu {
     }
 
     void PresentationEngine::UpdateSwapchain(texture::Format format, texture::Dimensions extent) {
+        // Apply resolution scale to internal render target size
+        float scale = static_cast<float>(*state.settings->resolutionScale) / 100.0f;
+        extent.width = static_cast<u32>(static_cast<float>(extent.width) * scale);
+        extent.height = static_cast<u32>(static_cast<float>(extent.height) * scale);
+        
         auto minImageCount{std::max(vkSurfaceCapabilities.minImageCount, *state.settings->forceTripleBuffering ? 3U : 2U)};
         if (minImageCount > MaxSwapchainImageCount)
             throw exception("Requesting swapchain with higher image count ({}) than maximum slot count ({})", minImageCount, MaxSwapchainImageCount);
