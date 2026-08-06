@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    # Skip 'labeled' events that didn't add the 'ci' label
     if: |
       github.event_name != 'pull_request' ||
       github.event.action != 'labeled' ||
@@ -54,6 +53,9 @@ jobs:
         env:
           KEYSTORE_ENCODED: ${{ secrets.KEYSTORE }}
         run: echo $KEYSTORE_ENCODED | base64 --decode > "/home/runner/keystore.jks"
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
 
       - name: Android Assemble
         env:
