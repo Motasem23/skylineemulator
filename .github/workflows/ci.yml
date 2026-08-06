@@ -21,13 +21,8 @@ jobs:
       NDK_VERSION: "25.0.8775105"
 
     steps:
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
       - name: Git Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -37,7 +32,7 @@ jobs:
           max-size: 3Gi
 
       - name: Restore Gradle Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ~/.gradle/
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
@@ -48,27 +43,17 @@ jobs:
 
       - name: Install Ninja Build
         run: |
-          sudo apt-get update
           sudo apt-get install -y ninja-build
           ln -s /usr/bin/ninja .
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install CMake & Android NDK
-        run: |
-          sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}"
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: echo "yes" | $ANDROID_HOME/tools/bin/sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}" --channel=3 | grep -v = || true
 
       - name: Decode Keystore
         if: env.IS_SKYLINE_SIGNED == 'true'
         env:
           KEYSTORE_ENCODED: ${{ secrets.KEYSTORE }}
         run: echo $KEYSTORE_ENCODED | base64 --decode > "/home/runner/keystore.jks"
-
-      - name: Make Gradle Wrapper Executable
-        run: chmod +x gradlew
 
       - name: Android Assemble
         env:
@@ -79,10 +64,7 @@ jobs:
           CMAKE_C_COMPILER_LAUNCHER: "ccache"
           CMAKE_CXX_COMPILER_LAUNCHER: "ccache"
           CCACHE_COMPILERCHECK: "string:${{ env.NDK_VERSION }}"
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
-          ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
-        run: |
-          ./gradlew --stacktrace --build-cache --parallel --configure-on-demand assembleFullRelease assembleFullReldebug
+        run: ./gradlew --stacktrace --configuration-cache --build-cache --parallel --configure-on-demand assembleFullRelease assembleFullReldebug
 
       - name: Rename APKs (Signed)
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
@@ -92,19 +74,17 @@ jobs:
 
       - name: Upload Signed Debug APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: skyline-${{ github.run_number }}-reldebug
+          name: skyline-${{ github.run_number }}-reldebug.apk
           path: skyline-${{ github.run_number }}-reldebug.apk
-          if-no-files-found: error
 
       - name: Upload Signed Release APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: skyline-${{ github.run_number }}-release
+          name: skyline-${{ github.run_number }}-release.apk
           path: skyline-${{ github.run_number }}-release.apk
-          if-no-files-found: error
 
       - name: Rename APKs (Unsigned)
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
@@ -114,17 +94,15 @@ jobs:
 
       - name: Upload Unsigned Debug APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: skyline-${{ github.run_number }}-unsigned-reldebug
+          name: skyline-${{ github.run_number }}-unsigned-reldebug.apk
           path: skyline-${{ github.run_number }}-unsigned-reldebug.apk
-          if-no-files-found: error
 
       - name: Upload Unsigned Release APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: skyline-${{ github.run_number }}-unsigned-release
-          path: skyline-${{ github.run_NUMBER }}-unsigned-release.apk
-          if-no-files-found: error
+          name: skyline-${{ github.run_number }}-unsigned-release.apk
+          path: skyline-${{ github.run_number }}-unsigned-release.apk
           
