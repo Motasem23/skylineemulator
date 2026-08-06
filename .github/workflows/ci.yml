@@ -1,67 +1,130 @@
-name: Build Android App
+name: CI
 
 on:
   push:
-    branches: [ "main", "master", "dev" ]
   pull_request:
-    branches: [ "main", "master", "dev" ]
-  workflow_dispatch:
+    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   build:
-    # Using ubuntu-22.04 avoids newer host CMake 3.31 override issues
-    runs-on: ubuntu-22.04
+    # Skip 'labeled' events that didn't add the 'ci' label
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'ci'
+    runs-on: ubuntu-latest
+    env:
+      JVM_OPTS: -Xmx6G
+      IS_SKYLINE_SIGNED: ${{ secrets.KEYSTORE != '' }}
+      UPLOAD_ARTIFACTS: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci') }}
+      CMAKE_VERSION: "3.22.1"
+      NDK_VERSION: "25.0.8775105"
 
     steps:
-      # 1. Checkout repository with all Git submodules recursively
-      - name: Checkout Repository
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Git Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      # 2. Set up Java JDK 17
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Restore CCache
+        uses: hendrikmuhs/ccache-action@v1.2
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          max-size: 3Gi
 
-      # 3. Set up Android SDK
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-
+            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-
+            ${{ runner.os }}-gradle-
+
+      - name: Install Ninja Build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          ln -s /usr/bin/ninja .
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 4. Install specific NDK, CMake, and Ninja via sdkmanager
-      - name: Install Android NDK & CMake
+      - name: Install CMake & Android NDK
         run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses
-          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install \
-            "ndk;25.0.8775105" \
-            "cmake;3.22.1" \
-            "build-tools;33.0.0"
+          sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}"
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
-      # 5. Export NDK Environment Variable
-      - name: Set Environment Variables
-        run: |
-          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/25.0.8775105" >> $GITHUB_ENV
-          echo "NDK_HOME=${ANDROID_HOME}/ndk/25.0.8775105" >> $GITHUB_ENV
+      - name: Decode Keystore
+        if: env.IS_SKYLINE_SIGNED == 'true'
+        env:
+          KEYSTORE_ENCODED: ${{ secrets.KEYSTORE }}
+        run: echo $KEYSTORE_ENCODED | base64 --decode > "/home/runner/keystore.jks"
 
-      # 6. Cache Gradle wrapper and dependencies
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      # 7. Grant execute permissions to gradlew
-      - name: Make gradlew executable
+      - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
-      # 8. Build APK (compiles Native C++ code via CMake/Ninja)
-      - name: Build APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Android Assemble
+        env:
+          SIGNING_STORE_PATH: "/home/runner/keystore.jks"
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          CMAKE_C_COMPILER_LAUNCHER: "ccache"
+          CMAKE_CXX_COMPILER_LAUNCHER: "ccache"
+          CCACHE_COMPILERCHECK: "string:${{ env.NDK_VERSION }}"
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+        run: |
+          ./gradlew --stacktrace --build-cache --parallel --configure-on-demand assembleFullRelease assembleFullReldebug
 
-      # 9. Upload generated APK as artifact
-      - name: Upload APK Artifact
+      - name: Rename APKs (Signed)
+        if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
+        run: |
+          mv app/build/outputs/apk/full/reldebug/app-full-reldebug.apk skyline-$GITHUB_RUN_NUMBER-reldebug.apk
+          mv app/build/outputs/apk/full/release/app-full-release.apk skyline-$GITHUB_RUN_NUMBER-release.apk
+
+      - name: Upload Signed Debug APK
+        if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: skyline-${{ github.run_number }}-reldebug
+          path: skyline-${{ github.run_number }}-reldebug.apk
           if-no-files-found: error
+
+      - name: Upload Signed Release APK
+        if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyline-${{ github.run_number }}-release
+          path: skyline-${{ github.run_number }}-release.apk
+          if-no-files-found: error
+
+      - name: Rename APKs (Unsigned)
+        if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
+        run: |
+          mv app/build/outputs/apk/full/reldebug/app-full-reldebug.apk skyline-$GITHUB_RUN_NUMBER-unsigned-reldebug.apk
+          mv app/build/outputs/apk/full/release/app-full-release.apk skyline-$GITHUB_RUN_NUMBER-unsigned-release.apk
+
+      - name: Upload Unsigned Debug APK
+        if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyline-${{ github.run_number }}-unsigned-reldebug
+          path: skyline-${{ github.run_number }}-unsigned-reldebug.apk
+          if-no-files-found: error
+
+      - name: Upload Unsigned Release APK
+        if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyline-${{ github.run_number }}-unsigned-release
+          path: skyline-${{ github.run_NUMBER }}-unsigned-release.apk
+          if-no-files-found: error
+          
