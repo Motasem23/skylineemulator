@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -32,7 +32,7 @@ jobs:
           max-size: 3Gi
 
       - name: Restore Gradle Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.gradle/
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
@@ -47,7 +47,7 @@ jobs:
           ln -s /usr/bin/ninja .
 
       - name: Install CMake & Android NDK
-        run: echo "yes" | $ANDROID_HOME/tools/bin/sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}" --channel=3 | grep -v = || true
+        run: echo "yes" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}" --channel=3 | grep -v = || true
 
       - name: Decode Keystore
         if: env.IS_SKYLINE_SIGNED == 'true'
@@ -74,16 +74,16 @@ jobs:
 
       - name: Upload Signed Debug APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: skyline-${{ github.run_number }}-reldebug.apk
+          name: skyline-${{ github.run_number }}-reldebug
           path: skyline-${{ github.run_number }}-reldebug.apk
 
       - name: Upload Signed Release APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: skyline-${{ github.run_number }}-release.apk
+          name: skyline-${{ github.run_number }}-release
           path: skyline-${{ github.run_number }}-release.apk
 
       - name: Rename APKs (Unsigned)
@@ -94,14 +94,14 @@ jobs:
 
       - name: Upload Unsigned Debug APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: skyline-${{ github.run_number }}-unsigned-reldebug.apk
+          name: skyline-${{ github.run_number }}-unsigned-reldebug
           path: skyline-${{ github.run_number }}-unsigned-reldebug.apk
 
       - name: Upload Unsigned Release APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: skyline-${{ github.run_number }}-unsigned-release.apk
+          name: skyline-${{ github.run_number }}-unsigned-release
           path: skyline-${{ github.run_number }}-unsigned-release.apk
