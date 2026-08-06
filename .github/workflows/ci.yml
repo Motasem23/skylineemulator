@@ -74,14 +74,14 @@ jobs:
 
       - name: Upload Signed Debug APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: skyline-${{ github.run_number }}-reldebug.apk
           path: skyline-${{ github.run_number }}-reldebug.apk
 
       - name: Upload Signed Release APK
         if: env.IS_SKYLINE_SIGNED == 'true' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: skyline-${{ github.run_number }}-release.apk
           path: skyline-${{ github.run_number }}-release.apk
@@ -94,14 +94,14 @@ jobs:
 
       - name: Upload Unsigned Debug APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: skyline-${{ github.run_number }}-unsigned-reldebug.apk
           path: skyline-${{ github.run_number }}-unsigned-reldebug.apk
 
       - name: Upload Unsigned Release APK
         if: env.IS_SKYLINE_SIGNED == 'false' && env.UPLOAD_ARTIFACTS == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: skyline-${{ github.run_number }}-unsigned-release.apk
           path: skyline-${{ github.run_number }}-unsigned-release.apk
