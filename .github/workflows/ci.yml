@@ -24,6 +24,10 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Install required CMake version
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1"
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
